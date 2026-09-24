@@ -1,0 +1,30 @@
+# Build output
+target/
+build/
+release/
+*.dll
+*.so
+*.dylib
+*.class
+*.obj
+*.lib
+*.exp
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+*~
