@@ -18,6 +18,8 @@
 
 FastDirectX provides a low-overhead GPU-accelerated 2D pipeline (instanced shapes, quad batching, texture rendering, and smooth zoom/transforms) with native C ABI hardware execution and zero legacy JNI marshalling cost.
 
+![FastDirectX Showcase](docs/screenshot.png)
+
 ---
 
 ## Quick Start — Example
