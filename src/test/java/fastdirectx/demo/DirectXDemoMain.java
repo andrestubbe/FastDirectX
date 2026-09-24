@@ -34,10 +34,10 @@ public final class DirectXDemoMain {
 
             long hwnd = window.getHWND();
             if (hwnd != 0) {
-                // Invertierte Titelleiste via FastTheme (Weißer Balken, schwarzer Text) & abgerundete Ecken
-                FastTheme.setTitleBarDarkMode(hwnd, false);
-                FastTheme.setTitleBarColor(hwnd, 240, 240, 240);
-                FastTheme.setTitleBarTextColor(hwnd, 20, 20, 20);
+                // Schwarze Titelleiste mit weißem Text via FastTheme & abgerundete Ecken
+                FastTheme.setTitleBarDarkMode(hwnd, true);
+                FastTheme.setTitleBarColor(hwnd, 20, 20, 20);
+                FastTheme.setTitleBarTextColor(hwnd, 240, 240, 240);
                 FastTheme.setWindowBackgroundColor(hwnd, 0, 0, 0);
                 FastTheme.setCornerStyle(hwnd, 2);
             }
