@@ -48,7 +48,19 @@ public final class DirectXDemoMain {
 
             final int[] dimTracker = new int[] { width, height };
 
-            java.util.function.BiConsumer<Integer, Integer> renderFrame = (curW, curH) -> {
+            final int gradSteps = 256;
+            final float[] gradColors = new float[gradSteps * 3];
+            for (int i = 0; i < gradSteps; i++) {
+                float t = i / (float) (gradSteps - 1);
+                float r = (float) Math.sin(t * Math.PI);
+                float g = (float) Math.sin((t + 0.33f) * Math.PI);
+                float b = (float) Math.sin((t + 0.66f) * Math.PI);
+                gradColors[i * 3]     = Math.max(0, r);
+                gradColors[i * 3 + 1] = Math.max(0, g);
+                gradColors[i * 3 + 2] = Math.max(0, b);
+            }
+
+            fastwindow.WindowPaintListener renderFrame = (curW, curH) -> {
                 if (curW <= 0 || curH <= 0) return;
 
                 if (curW != dimTracker[0] || curH != dimTracker[1]) {
@@ -82,18 +94,12 @@ public final class DirectXDemoMain {
                 }
 
                 // 2. Horizontales Farbspektrum (Gradient-Balken über untere 20% des Fensters gestreckt)
-                int gradSteps = 256;
                 float gradW = (float) curW / gradSteps;
                 float gradY = gridH;
                 float gradH = (float) curH - gridH;
 
                 for (int i = 0; i < gradSteps; i++) {
-                    float t = i / (float) (gradSteps - 1);
-                    float r = (float) Math.sin(t * Math.PI);
-                    float g = (float) Math.sin((t + 0.33f) * Math.PI);
-                    float b = (float) Math.sin((t + 0.66f) * Math.PI);
-
-                    g2d.setColor(Math.max(0, r), Math.max(0, g), Math.max(0, b), 1.0f);
+                    g2d.setColor(gradColors[i * 3], gradColors[i * 3 + 1], gradColors[i * 3 + 2], 1.0f);
                     g2d.fillRect(i * gradW, gradY, gradW + 1.0f, gradH);
                 }
 
@@ -101,17 +107,17 @@ public final class DirectXDemoMain {
             };
 
             // Synchronous listener during Windows modal sizing loop
-            window.setPaintListener(renderFrame::accept);
+            window.setPaintListener(renderFrame);
 
             // Render first frame before showing window to eliminate white flash
-            renderFrame.accept(width, height);
+            renderFrame.onPaint(width, height);
             window.setVisible(true);
 
             long lastTime = System.nanoTime();
             int frames = 0;
 
             while (window.pollEvents()) {
-                renderFrame.accept(window.getWidth(), window.getHeight());
+                renderFrame.onPaint(window.getWidth(), window.getHeight());
 
                 int curW = window.getWidth();
                 int curH = window.getHeight();

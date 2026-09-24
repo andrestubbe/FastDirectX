@@ -102,8 +102,8 @@ public class DirectXBackend implements GraphicsBackend {
     }
 
     private long handle;
-    private final Arena frameArena = Arena.ofAuto();
-    private final MemorySegment projSegment = frameArena.allocateArray(ValueLayout.JAVA_FLOAT, 16);
+    private final Arena backendArena = Arena.ofConfined();
+    private final MemorySegment projSegment = backendArena.allocateArray(ValueLayout.JAVA_FLOAT, 16);
 
     @Override
     public void initialize(long hwnd, int width, int height) {
@@ -268,7 +268,11 @@ public class DirectXBackend implements GraphicsBackend {
                 handle = 0;
             } catch (Throwable t) {
                 throw new RuntimeException(t);
+            } finally {
+                backendArena.close();
             }
+        } else {
+            backendArena.close();
         }
     }
 }
