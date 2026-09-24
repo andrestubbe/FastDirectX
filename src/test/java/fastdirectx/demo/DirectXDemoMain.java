@@ -2,19 +2,46 @@ package fastdirectx.demo;
 
 import fastdirectx.DirectXBackend;
 import fastgraphics.g2d.FastGraphics2D;
+import fasttheme.FastTheme;
 import fastwindow.FastNativeWindow;
 import fastwindow.FastWindow;
 
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+
 public final class DirectXDemoMain {
 
+    private static BufferedImage createRoundIcon() {
+        BufferedImage icon = new BufferedImage(64, 64, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = icon.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setColor(Color.WHITE);
+        g.fillOval(4, 4, 56, 56);
+        g.dispose();
+        return icon;
+    }
+
     public static void main(String[] args) {
-        int width = 1280;
-        int height = 720;
+        int width = 1024;
+        int height = 600;
 
         try (FastNativeWindow window = FastWindow.create("FastDirectX 11 — Raster Test Pattern", width, height);
              DirectXBackend backend = new DirectXBackend()) {
 
+            window.setIconImage(createRoundIcon());
+
             long hwnd = window.getHWND();
+            if (hwnd != 0) {
+                // Invertierte Titelleiste via FastTheme (Weißer Balken, schwarzer Text) & abgerundete Ecken
+                FastTheme.setTitleBarDarkMode(hwnd, false);
+                FastTheme.setTitleBarColor(hwnd, 240, 240, 240);
+                FastTheme.setTitleBarTextColor(hwnd, 20, 20, 20);
+                FastTheme.setWindowBackgroundColor(hwnd, 0, 0, 0);
+                FastTheme.setCornerStyle(hwnd, 2);
+            }
+
             backend.initialize(hwnd, width, height);
 
             FastGraphics2D g2d = new FastGraphics2D(backend, width, height);
@@ -33,8 +60,8 @@ public final class DirectXDemoMain {
                 g2d.updateDimensions(curW, curH);
                 g2d.begin();
 
-                // Dunkelgrauer Hintergrund
-                g2d.clear(0.08f, 0.08f, 0.08f, 1.0f);
+                // Reines Schwarz als Hintergrund
+                g2d.clear(0.0f, 0.0f, 0.0f, 1.0f);
 
                 // 1. Raster-Testbild: 8x8 Farb-Kacheln über obere 80% des Fensters gestreckt
                 float gridH = (float) curH * 0.80f;

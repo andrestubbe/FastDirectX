@@ -42,6 +42,12 @@
             <version>0.1.2</version>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>com.github.andrestubbe</groupId>
+            <artifactId>FastTheme</artifactId>
+            <version>0.1.4</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

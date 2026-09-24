@@ -1,3 +1,9 @@
+> [!WARNING]
+> **🚧 WORK IN PROGRESS (WIP) — Active Engine Development & Calibration**
+> 
+> * **Active Calibration:** The 2D rendering pipeline, analytical HLSL shaders (anti-aliasing, stroke coverage, corner radii), and color spaces are currently undergoing active calibration against Java2D references.
+> * **FastGraphics Migration:** High-level 2D drawing primitives, shape APIs, and canvas abstractions will progressively migrate to **[FastGraphics](https://github.com/andrestubbe/FastGraphics)** as the unified drawing layer across backends, while FastDirectX serves as the dedicated native DirectX hardware backend and swapchain runtime.
+
 # FastDirectX 0.1.0 — High-Performance Native DirectX 11 2D Rendering & Swapchain Engine for Java
 
 [![Status](https://img.shields.io/badge/status-0.1.0-brightgreen.svg)](https://github.com/andrestubbe/FastDirectX/releases/tag/0.1.0)
