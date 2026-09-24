@@ -34,7 +34,7 @@
         <dependency>
             <groupId>fastgraphics</groupId>
             <artifactId>fastgraphics</artifactId>
-            <version>0.2.0-SNAPSHOT</version>
+            <version>0.1.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>com.github.andrestubbe</groupId>

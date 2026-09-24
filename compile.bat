@@ -52,8 +52,8 @@ if %ERRORLEVEL% NEQ 0 (
     call "!VS_DIR!\VC\Auxiliary\Build\vcvars64.bat" >nul
 )
 
-if not exist "target\classes" mkdir "target\classes"
-if not exist "src\main\resources" mkdir "src\main\resources"
+if not exist "target\classes\native" mkdir "target\classes\native"
+if not exist "src\main\resources\native" mkdir "src\main\resources\native"
 
 cl.exe /O2 /W3 /std:c++17 /MD /EHsc /LD ^
    /I "%JAVA_HOME%\include" ^
@@ -66,6 +66,8 @@ cl.exe /O2 /W3 /std:c++17 /MD /EHsc /LD ^
 if %ERRORLEVEL% EQU 0 (
     copy /y target\classes\FastDirectX.dll . >nul 2>&1
     copy /y target\classes\FastDirectX.dll src\main\resources\FastDirectX.dll >nul 2>&1
+    copy /y target\classes\FastDirectX.dll src\main\resources\native\FastDirectX.dll >nul 2>&1
+    copy /y target\classes\FastDirectX.dll target\classes\native\FastDirectX.dll >nul 2>&1
     echo.
     echo ========================================================
     echo [SUCCESS] FastDirectX.dll compiled successfully
