@@ -55,6 +55,7 @@ struct DXState {
 
     int currentVertexBufferSize = 0;
     int currentIndexBufferSize = 0;
+    DXTexture* defaultWhiteTexture = nullptr;
 };
 
 static const char* g_shaderCode = R"(
@@ -89,7 +90,160 @@ float4 PSColor(PS_INPUT input) : SV_TARGET {
 Texture2D tex2D : register(t0);
 SamplerState samplerState : register(s0);
 
+// Helper: 4x4 = 16 Subpixel Super-Sampling Coverage calculation for Circles
+float calculateCircleCoverage(float2 p, float2 dPdx, float2 dPdy, float maxR) {
+    float cov = 0.0f;
+    [unroll]
+    for (int j = 0; j < 4; j++) {
+        float sy = (float(j) + 0.5f) * 0.25f - 0.5f;
+        [unroll]
+        for (int i = 0; i < 4; i++) {
+            float sx = (float(i) + 0.5f) * 0.25f - 0.5f;
+            float2 subP = p + sx * dPdx + sy * dPdy;
+            if (length(subP) <= maxR) {
+                cov += 0.0625f;
+            }
+        }
+    }
+    return cov;
+}
+
+// 2D RoundRect SDF
+float sdRoundRect(float2 p, float2 b, float r) {
+    float2 q = abs(p) - (b - float2(r, r));
+    return min(max(q.x, q.y), 0.0f) + length(max(q, 0.0f)) - r;
+}
+
+float calculateRoundRectCoverage(float2 p, float2 dPdx, float2 dPdy, float2 b, float r) {
+    float cov = 0.0f;
+    [unroll]
+    for (int j = 0; j < 4; j++) {
+        float sy = (float(j) + 0.5f) * 0.25f - 0.5f;
+        [unroll]
+        for (int i = 0; i < 4; i++) {
+            float sx = (float(i) + 0.5f) * 0.25f - 0.5f;
+            float2 subP = p + sx * dPdx + sy * dPdy;
+            if (sdRoundRect(subP, b, r) <= 0.0f) {
+                cov += 0.0625f;
+            }
+        }
+    }
+    return cov;
+}
+
+float calculateRoundRectStrokeCoverage(float2 p, float2 dPdx, float2 dPdy, float2 b, float r, float strokePx) {
+    float covOuter = calculateRoundRectCoverage(p, dPdx, dPdy, b, r);
+    float2 bInner = b - float2(strokePx, strokePx);
+    float rInner = max(0.0f, r - strokePx);
+    float covInner = calculateRoundRectCoverage(p, dPdx, dPdy, bInner, rInner);
+    return clamp(covOuter - covInner, 0.0f, 1.0f);
+}
+
+float calculateStrokeCoverage(float2 p, float2 dPdx, float2 dPdy, float targetR, float halfStroke) {
+    float cov = 0.0f;
+    [unroll]
+    for (int j = 0; j < 4; j++) {
+        float sy = (float(j) + 0.5f) * 0.25f - 0.5f;
+        [unroll]
+        for (int i = 0; i < 4; i++) {
+            float sx = (float(i) + 0.5f) * 0.25f - 0.5f;
+            float2 subP = p + sx * dPdx + sy * dPdy;
+            float r = length(subP);
+            if (abs(r - targetR) <= halfStroke) {
+                cov += 0.0625f;
+            }
+        }
+    }
+    return cov;
+}
+
 float4 PSTexture(PS_INPUT input) : SV_TARGET {
+    float u = input.tex.x;
+    float v = input.tex.y;
+
+    // Mode -100: Solid Rectangle
+    if (u < -80.0f) {
+        return input.col;
+    }
+
+    // Mode -70: GPU Parametric Bézier Curve (Loop-Blinn)
+    if (u < -65.0f) {
+        float2 p = float2(u + 70.0f, v);
+        float f = p.x * p.x - p.y;
+        float2 grad = float2(ddx(f), ddy(f));
+        float gLen = length(grad);
+        if (gLen > 0.0f) {
+            float dist = f / gLen;
+            float alpha = clamp(0.5f - dist, 0.0f, 1.0f);
+            if (alpha <= 0.0f) discard;
+            return float4(input.col.rgb, input.col.a * alpha);
+        } else {
+            if (f > 0.0f) discard;
+            return input.col;
+        }
+    }
+
+    // Mode -60: Oval Fill WITHOUT AA (u in [-61, -59])
+    if (u < -55.0f) {
+        float2 p = float2(u + 60.0f, v);
+        if (length(p) > 1.0f) discard;
+        return input.col;
+    }
+
+    // Mode -50: Oval Outline WITHOUT AA (u in [-51, -49])
+    if (u < -45.0f) {
+        float2 p = float2(u + 50.0f, v);
+        float2 dPdx = ddx(p);
+        float2 dPdy = ddy(p);
+        float pxSize = max(length(dPdx), length(dPdy));
+        if (abs(length(p) - 1.0f) > 0.5f * pxSize) discard;
+        return input.col;
+    }
+
+    // Mode -30: Oval Fill WITH 16x Subpixel AA (u in [-31, -29])
+    if (u < -25.0f) {
+        float2 p = float2(u + 30.0f, v);
+        float2 dPdx = ddx(p);
+        float2 dPdy = ddy(p);
+        float alpha = calculateCircleCoverage(p, dPdx, dPdy, 1.0f);
+        if (alpha <= 0.0f) discard;
+        return float4(input.col.rgb, input.col.a * alpha);
+    }
+
+    // Mode -20: RoundRectangle Fill WITH 16x Subpixel AA (u in [-21, -19])
+    if (u < -15.0f) {
+        float2 p = float2(u + 20.0f, v);
+        float2 dPdx = ddx(p);
+        float2 dPdy = ddy(p);
+        float alpha = calculateRoundRectCoverage(p, dPdx, dPdy, float2(1.0f, 1.0f), 0.35f);
+        if (alpha <= 0.0f) discard;
+        return float4(input.col.rgb, input.col.a * alpha);
+    }
+
+    // Mode -10: RoundRectangle Outline WITH 16x Subpixel AA (u in [-11, -9])
+    if (u < -5.0f) {
+        float2 p = float2(u + 10.0f, v);
+        float2 dPdx = ddx(p);
+        float2 dPdy = ddy(p);
+        float pxSize = max(length(dPdx), length(dPdy));
+        float alpha = calculateRoundRectStrokeCoverage(p, dPdx, dPdy, float2(1.0f, 1.0f), 0.368f, pxSize);
+        if (alpha <= 0.0f) discard;
+        return float4(input.col.rgb, input.col.a * alpha);
+    }
+
+    // Mode -2: Oval Outline WITH 16x Subpixel AA (u in [-3, -1])
+    if (u < -0.5f) {
+        float2 p = float2(u + 2.0f, v);
+        float2 dPdx = ddx(p);
+        float2 dPdy = ddy(p);
+        float pxSize = max(length(dPdx), length(dPdy));
+        float halfStroke = 0.5f * pxSize;
+        float alpha = calculateStrokeCoverage(p, dPdx, dPdy, 1.0f, halfStroke);
+        if (alpha <= 0.0f) discard;
+        return float4(input.col.rgb, input.col.a * alpha);
+    }
+
+    // Standard Texture Mode: u >= 0.0
     return tex2D.Sample(samplerState, input.tex) * input.col;
 }
 )";
@@ -233,6 +387,9 @@ FASTDX_API int64_t fastdx_create(int64_t hwnd, int32_t w, int32_t h) {
     bdesc.RenderTarget[0].BlendEnable = FALSE;
     state->device->CreateBlendState(&bdesc, &state->blendNone);
 
+    uint32_t whitePixel = 0xFFFFFFFF;
+    state->defaultWhiteTexture = (DXTexture*)fastdx_create_texture((int64_t)state, 1, 1, &whitePixel);
+
     return (int64_t)state;
 }
 
@@ -362,13 +519,11 @@ FASTDX_API void fastdx_draw_triangles(int64_t handle,
 
     state->context->VSSetShader(state->vertexShader, nullptr, 0);
 
-    if (textureHandle != 0) {
-        DXTexture* tex = (DXTexture*)textureHandle;
-        state->context->PSSetShader(state->texturePixelShader, nullptr, 0);
+    DXTexture* tex = textureHandle ? (DXTexture*)textureHandle : state->defaultWhiteTexture;
+    state->context->PSSetShader(state->texturePixelShader, nullptr, 0);
+    if (tex && tex->srv) {
         state->context->PSSetShaderResources(0, 1, &tex->srv);
         state->context->PSSetSamplers(0, 1, &state->samplerState);
-    } else {
-        state->context->PSSetShader(state->pixelShader, nullptr, 0);
     }
 
     state->context->DrawIndexed(indexCount, 0, 0);
@@ -444,7 +599,18 @@ FASTDX_API void fastdx_destroy(int64_t handle) {
     DXState* state = (DXState*)handle;
     if (!state) return;
 
+    if (state->context) {
+        ID3D11RenderTargetView* nullRtv[1] = { nullptr };
+        state->context->OMSetRenderTargets(1, nullRtv, nullptr);
+        state->context->ClearState();
+        state->context->Flush();
+    }
+
     CleanupRenderTarget(state);
+    if (state->defaultWhiteTexture) {
+        fastdx_destroy_texture(handle, (int64_t)state->defaultWhiteTexture);
+        state->defaultWhiteTexture = nullptr;
+    }
     if (state->vertexBuffer) state->vertexBuffer->Release();
     if (state->indexBuffer) state->indexBuffer->Release();
     if (state->constantBuffer) state->constantBuffer->Release();
@@ -458,7 +624,10 @@ FASTDX_API void fastdx_destroy(int64_t handle) {
     if (state->vertexShader) state->vertexShader->Release();
     if (state->pixelShader) state->pixelShader->Release();
     if (state->texturePixelShader) state->texturePixelShader->Release();
-    if (state->swapChain) state->swapChain->Release();
+    if (state->swapChain) {
+        state->swapChain->SetFullscreenState(FALSE, nullptr);
+        state->swapChain->Release();
+    }
     if (state->context) state->context->Release();
     if (state->device) state->device->Release();
 
